@@ -1,5 +1,8 @@
 # kubeseal-web
 
+![CI](https://github.com/MrSaints/kubeseal-web/workflows/CI/badge.svg)
+
+
 🔐 Yet another web UI for protecting Kubernetes secrets with [Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets).
 
 _This is still under development. It works, but use at your own risk._
@@ -26,7 +29,7 @@ The recommended way of installing `kubeseal-web` in your Kubernetes cluster is t
 ```yml
 # kustomization.yml
 resources:
-  - github.com/MrSaints/kubeseal-web/k8s/kustomize/base
+  - github.com/MrSaints/kubeseal-web/k8s/kustomize/base?ref=master
 ```
 
 ### Recommendations
@@ -35,7 +38,7 @@ You may require the standalone `kustomize` binary instead of `kubectl apply -k` 
 
 It is recommended to pin any use of remote resources. See https://github.com/kubernetes-sigs/kustomize/blob/master/examples/remoteBuild.md for more information. It is also recommended to check your "kustomization" file into Git.
 
-See [`k8s/kustomize/example`](k8s/kustomize/example) for an example on how you can extend, and customise the Kustomize base manifests.
+See [`k8s/kustomize/example`](k8s/kustomize/example) for an example on how you can extend, and customise the Kustomize base manifests (e.g. pinning the Docker image).
 
 ### Configuration
 
