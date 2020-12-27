@@ -1,0 +1,26 @@
+nameSuffix: -example
+
+namespace: kubeseal-web-example
+
+commonLabels:
+  app.kubernetes.io/part-of: kubeseal-web
+  environment: example
+
+images:
+  - name: mrsaints/kubeseal-web
+    newName: "private.docker.registry/kubeseal-web"
+    newTag: "latest"
+
+patchesStrategicMerge:
+  - ./deployment.yml
+
+configMapGenerator:
+  - name: kubeseal-web-config
+    behavior: merge
+    literals:
+      - KSWEB_SEALED_SECRETS_CONTROLLER_NAMESPACE=sealed-secrets
+      - KSWEB_SEALED_SECRETS_CONTROLLER_NAME=sealed-secrets
+      - KSWEB_LOG_LEVEL=DEBUG
+
+resources:
+  - ./../base

@@ -1,0 +1,10 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeseal-web
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+        - name: private-registry

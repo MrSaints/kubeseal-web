@@ -1,0 +1,43 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kubeseal-web
+  labels:
+    app.kubernetes.io/name: kubeseal-web
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 0
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubeseal-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kubeseal-web
+    spec:
+      containers:
+        - name: web
+          image: kubeseal-web
+          env:
+            - name: ADDRESS
+              value: ":8080"
+          envFrom:
+            - configMapRef:
+                name: kubeseal-web-config
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080

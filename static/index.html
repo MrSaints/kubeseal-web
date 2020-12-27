@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Kubeseal Web</title>
+        <link href="/tailwind.min.css" rel="stylesheet" />
+    </head>
+
+    <body>
+        <div
+            class="min-h-screen bg-gray-100 p-6 flex flex-wrap flex-col justify-center content-center"
+        >
+            <div class="max-w-screen-lg w-full">
+                <h2 class="text-3xl font-bold text-gray-900 my-8">
+                    Seal Raw Secret (YAML)
+                </h2>
+
+                <div>
+                    <div class="p-4 bg-white shadow rounded-md" x-data="sealRawSecretForm()">
+                        <div
+                            class="block w-full bg-red-200 border border-solid border-red-300 my-4 p-4 rounded shadow-sm"
+                            x-show="validationError"
+                            x-text="validationError"
+                        ></div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <form @submit.prevent="seal">
+                                    <h3 class="text-xl mt-2 mb-4">Raw Secret (YAML)</h3>
+                                    <textarea
+                                        class="w-full h-96 bg-gray-50 border border-solid border-gray-300 p-4 rounded shadow-sm"
+                                        x-model="rawSecret"
+                                    ></textarea>
+
+                                    <button
+                                        class="block text-center w-full py-2 px-4 bg-blue-400 hover:bg-blue-500 text-white font-bold my-1 rounded shadow-sm"
+                                    >
+                                        Seal
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div>
+                                <h3 class="text-xl mt-2 mb-4">Sealed Secret (YAML)</h3>
+                                <textarea
+                                    class="w-full h-96 bg-gray-50 border border-solid border-gray-300 p-4 rounded shadow-sm"
+                                    x-model="sealedSecret"
+                                    readonly
+                                ></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="/alpine.min.js" defer></script>
+        <script src="/js-yaml.min.js" defer></script>
+        <script>
+            function sealRawSecretForm() {
+                return {
+                    rawSecret: `---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: example
+type: Opaque
+stringData:
+  key: "value"
+                `,
+                    sealedSecret: "",
+                    validationError: "",
+                    async seal() {
+                        let secretJson = "";
+
+                        try {
+                            secretJson = jsyaml.safeLoad(this.rawSecret);
+                        } catch (err) {
+                            if (err instanceof jsyaml.YAMLException) {
+                                this.validationError = `Failed to parse YAML: ${err.reason}`;
+                            } else {
+                                this.validationError = `Failed to parse YAML: ${err.toString()}`;
+                            }
+                            console.error(err);
+                            return;
+                        }
+                        const payload = { secretJson: JSON.stringify(secretJson) };
+
+                        const res = await fetch("/seal", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(payload),
+                        });
+                        if (res.ok) {
+                            const data = await res.json();
+                            const sealedSecretJson = JSON.parse(data.sealedSecretJson);
+                            const sealedSecretYaml = jsyaml.dump(sealedSecretJson);
+                            this.sealedSecret = sealedSecretYaml;
+                        } else if (res.status === 400) {
+                            const data = await res.json();
+                            this.validationError = `Failed to seal: ${data.error}`;
+                        }
+                    },
+                };
+            }
+        </script>
+    </body>
+</html>
