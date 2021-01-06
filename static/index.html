@@ -27,26 +27,56 @@
                             <div>
                                 <form @submit.prevent="seal">
                                     <h3 class="text-xl mt-2 mb-4">Raw Secret (YAML)</h3>
+
+                                    <select
+                                        class="w-full bg-gray-50 border border-solid border-gray-300 p-2 mb-4 rounded shadow-sm"
+                                        x-model="selectedScope"
+                                        x-on:change="sealDisabled = false; sealText = 'Seal'"
+                                    >
+                                        <option value="default" selected disabled hidden>
+                                            Scope (Default: Strict)
+                                        </option>
+                                        <option value="strict">Strict</option>
+                                        <option value="namespace">Namespace</option>
+                                        <option value="cluster">Cluster</option>
+                                    </select>
+
                                     <textarea
                                         class="w-full h-96 bg-gray-50 border border-solid border-gray-300 p-4 rounded shadow-sm"
                                         x-model="rawSecret"
+                                        x-on:input="sealDisabled = false; sealText = 'Seal'"
                                     ></textarea>
 
                                     <button
-                                        class="block text-center w-full py-2 px-4 bg-blue-400 hover:bg-blue-500 text-white font-bold my-1 rounded shadow-sm"
+                                        class="block text-center w-full py-2 px-4 bg-blue-400 text-white font-bold my-1 rounded shadow-sm"
+                                        x-bind:class="{'opacity-50': sealDisabled, 'hover:bg-blue-500': !sealDisabled}"
+                                        x-bind:disabled="sealDisabled"
+                                        x-text="sealText"
                                     >
                                         Seal
                                     </button>
                                 </form>
                             </div>
 
-                            <div>
+                            <div class="flex flex-col">
                                 <h3 class="text-xl mt-2 mb-4">Sealed Secret (YAML)</h3>
+
                                 <textarea
-                                    class="w-full h-96 bg-gray-50 border border-solid border-gray-300 p-4 rounded shadow-sm"
+                                    class="flex-auto w-full bg-gray-50 border border-solid border-gray-300 p-4 rounded shadow-sm"
                                     x-model="sealedSecret"
+                                    x-ref="sealedSecretRef"
                                     readonly
                                 ></textarea>
+
+                                <button
+                                    class="block text-center w-full py-2 px-4 bg-green-600 text-white font-bold my-1 rounded shadow-sm"
+                                    x-bind:class="{'opacity-50': !sealedSecret, 'hover:bg-green-700': sealedSecret}"
+                                    x-bind:disabled="!sealedSecret"
+                                    x-on:click="$refs.sealedSecretRef.select(); document.execCommand('copy'); isCopied = true;"
+                                    x-text="isCopied ? 'Copied!' : 'Copy'"
+                                >
+                                    Copy
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -59,6 +89,7 @@
         <script>
             function sealRawSecretForm() {
                 return {
+                    selectedScope: "default",
                     rawSecret: `---
 apiVersion: v1
 kind: Secret
@@ -69,36 +100,83 @@ stringData:
   key: "value"
 `,
                     sealedSecret: "",
+                    sealText: "Seal",
+                    sealDisabled: false,
+                    isCopied: false,
                     validationError: "",
                     async seal() {
                         let secretJson = "";
 
+                        this.sealText = "🔑 Sealing ...";
+                        this.sealDisabled = true;
+                        this.isCopied = false;
+                        this.validationError = "";
+
                         try {
                             secretJson = jsyaml.safeLoad(this.rawSecret);
                         } catch (err) {
+                            this.sealText = "❌ Failed to Parse!";
                             if (err instanceof jsyaml.YAMLException) {
                                 this.validationError = `Failed to parse YAML: ${err.reason}`;
                             } else {
-                                this.validationError = `Failed to parse YAML: ${err.toString()}`;
+                                this.validationError = `Failed to parse YAML: ${err.toString()} (see console for more details)`;
                             }
                             console.error(err);
                             return;
                         }
+
+                        secretJson.metadata.annotations = secretJson.metadata.annotations || {};
+                        switch (this.selectedScope) {
+                            case "namespace":
+                                secretJson.metadata.annotations[
+                                    "sealedsecrets.bitnami.com/namespace-wide"
+                                ] = "true";
+                                break;
+                            case "cluster":
+                                secretJson.metadata.annotations[
+                                    "sealedsecrets.bitnami.com/cluster-wide"
+                                ] = "true";
+                                break;
+                        }
+
                         const payload = { secretJson: JSON.stringify(secretJson) };
 
-                        const res = await fetch("/seal", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(payload),
-                        });
+                        let res = null;
+
+                        try {
+                            res = await fetch("/seal", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(payload),
+                            });
+                        } catch (err) {
+                            this.sealText = "❌ Failed to Seal!";
+                            this.validationError = `Failed to seal: ${err.toString()} (see console for more details)`;
+                            console.error(err);
+                            return;
+                        }
+
                         if (res.ok) {
                             const data = await res.json();
-                            const sealedSecretJson = JSON.parse(data.sealedSecretJson);
+                            let sealedSecretJson = JSON.parse(data.sealedSecretJson);
+                            sealedSecretJson.metadata.annotations =
+                                sealedSecretJson.metadata.annotations || {};
+                            sealedSecretJson.metadata.annotations.sealedBy = window.location
+                                .toString()
+                                .replace(window.location.search, "");
+                            sealedSecretJson.metadata.annotations.sealedAt = new Date().toISOString();
                             const sealedSecretYaml = jsyaml.dump(sealedSecretJson);
                             this.sealedSecret = sealedSecretYaml;
+                            this.sealText = "🔐 Sealed!";
                         } else if (res.status === 400) {
                             const data = await res.json();
                             this.validationError = `Failed to seal: ${data.error}`;
+                        } else {
+                            this.validationError = `Failed to seal: server responded with ${res.status}`;
+                        }
+
+                        if (this.validationError) {
+                            this.sealText = "❌ Failed to Seal!";
                         }
                     },
                 };
