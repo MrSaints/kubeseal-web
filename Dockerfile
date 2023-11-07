@@ -45,10 +45,10 @@ LABEL org.label-schema.vcs-url="https://github.com/MrSaints/kubeseal-web" \
 
 RUN apk add --no-cache bash ca-certificates curl jq wget nano
 
-RUN KUBESEAL_BIN="kubeseal-linux-${TARGETARCH}" \
-    && wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.13.1/${KUBESEAL_BIN} -O kubeseal \
-    && install -m 755 kubeseal /usr/local/bin/kubeseal \
-    && rm kubeseal
+# Check required to handle naming convention in kubeseal assets as it doesnt contain the "linux-" prefix
+RUN KUBESEAL_BIN="kubeseal$(if [ "${TARGETARCH}" = "arm" ]; then echo "-${TARGETARCH}"; else echo "-linux-${TARGETARCH}"; fi)" \
+    && wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.13.1/$KUBESEAL_BIN -O /usr/local/bin/kubeseal \
+    && chmod +x /usr/local/bin/kubeseal
 
 COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
