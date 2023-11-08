@@ -1,4 +1,9 @@
-FROM golang:1.15-alpine AS dev
+# syntax=docker/dockerfile:1.2
+
+FROM --platform=$BUILDPLATFORM golang:1.21-alpine AS dev
+ARG TARGETPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
 LABEL org.label-schema.vcs-url="https://github.com/MrSaints/kubeseal-web" \
       maintainer="Ian L. <os@fyianlai.com>"
@@ -15,35 +20,37 @@ COPY go.mod go.sum /kubeseal-web/
 RUN go mod download \
     && go get github.com/markbates/pkger/cmd/pkger
 
-
-FROM dev as build
+FROM --platform=$BUILDPLATFORM dev AS build
+ARG TARGETPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
 COPY ./ /kubeseal-web/
 
-RUN mkdir /build/
-
-RUN pkger -include /static/ \
-    && rm -rf /kubeseal-web/static/
-
-RUN CGO_ENABLED=0 \
-    go build -v \
-    -ldflags "-s" -a -installsuffix cgo \
-    -o /build/kubeseal-web \
-    /kubeseal-web/ \
+RUN mkdir /build/ \
+    && pkger -include /static/ \
+    && rm -rf /kubeseal-web/static/ \
+    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -v \
+       -ldflags "-s -w" -a -installsuffix cgo \
+       -o /build/kubeseal-web . \
     && chmod +x /build/kubeseal-web
 
-
-FROM alpine:3.12 AS prod
+FROM --platform=$TARGETPLATFORM alpine:3.12 AS prod
+ARG TARGETPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
 
 LABEL org.label-schema.vcs-url="https://github.com/MrSaints/kubeseal-web" \
       maintainer="Ian L. <os@fyianlai.com>"
 
 RUN apk add --no-cache bash ca-certificates curl jq wget nano
 
-COPY --from=build /build/kubeseal-web /kubeseal-web/run
+RUN wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.17.3/kubeseal-0.17.3-linux-${TARGETARCH}.tar.gz -O kubeseal.tar.gz \
+    && tar -xzf kubeseal.tar.gz -C /tmp/ \
+    && install -m 755 /tmp/kubeseal /usr/local/bin/kubeseal \
+    && rm -rf kubeseal.tar.gz /tmp/kubeseal
 
-RUN curl -sL https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.13.1/kubeseal-linux-amd64 -o /usr/local/bin/kubeseal
-RUN chmod +x /usr/local/bin/kubeseal
+COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
 ARG BUILD_VERSION
 ENV KSWEB_VERSION $BUILD_VERSION
