@@ -52,5 +52,6 @@ COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
 ARG BUILD_VERSION
 ENV KSWEB_VERSION $BUILD_VERSION
+ENV GIN_MODE release
 
 ENTRYPOINT ["/kubeseal-web/run"]
