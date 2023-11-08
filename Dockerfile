@@ -17,8 +17,7 @@ ENV GOPROXY https://proxy.golang.org
 
 COPY go.mod go.sum /kubeseal-web/
 
-RUN go mod download \
-    && go get github.com/markbates/pkger/cmd/pkger
+RUN go mod download
 
 FROM --platform=$BUILDPLATFORM dev AS build
 ARG TARGETPLATFORM
@@ -27,12 +26,11 @@ ARG TARGETARCH
 
 COPY ./ /kubeseal-web/
 
-RUN mkdir /build/ \
-    && pkger -include /static/ \
-    && rm -rf /kubeseal-web/static/ \
-    && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -v \
-       -ldflags "-s -w" -a -installsuffix cgo \
-       -o /build/kubeseal-web . \
+RUN mkdir /build/ && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -v \
+    -ldflags "-s -w" -a -installsuffix cgo \
+    -o /build/kubeseal-web \
+    /kubeseal-web/ \
     && chmod +x /build/kubeseal-web
 
 FROM --platform=$TARGETPLATFORM alpine:3.12 AS prod
@@ -54,6 +52,5 @@ COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
 ARG BUILD_VERSION
 ENV KSWEB_VERSION $BUILD_VERSION
-ENV GIN_MODE release
 
 ENTRYPOINT ["/kubeseal-web/run"]
