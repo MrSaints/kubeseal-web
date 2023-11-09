@@ -48,6 +48,11 @@ LABEL org.label-schema.vcs-url="https://github.com/MrSaints/kubeseal-web" \
 
 RUN apk add --no-cache bash ca-certificates curl jq wget nano
 
+RUN wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.17.3/kubeseal-0.17.3-linux-${TARGETARCH}.tar.gz -O kubeseal.tar.gz \
+    && tar -xzf kubeseal.tar.gz -C /tmp/ \
+    && install -m 755 /tmp/kubeseal /usr/local/bin/kubeseal \
+    && rm -rf kubeseal.tar.gz /tmp/kubeseal
+    
 COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
 ARG BUILD_VERSION
