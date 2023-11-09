@@ -18,8 +18,7 @@ ENV PATH="${PATH}:/go/bin"
 
 COPY go.mod go.sum /kubeseal-web/
 
-RUN go mod download \
-    && go get github.com/markbates/pkger/cmd/pkger
+RUN go mod download
 
 FROM --platform=$BUILDPLATFORM dev AS build
 ARG TARGETPLATFORM
@@ -31,8 +30,6 @@ COPY ./ /kubeseal-web/
 ENV PATH="${PATH}:/go/bin"
 
 RUN mkdir /build/ \
-    && pkger -include /static/ \
-    && rm -rf /kubeseal-web/static/ \
     && CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -v \
        -ldflags "-s -w" -a -installsuffix cgo \
        -o /build/kubeseal-web . \

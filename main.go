@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"embed"
 	"io"
+	"io/fs"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,10 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-contrib/zap"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/kelseyhightower/envconfig"
-	"github.com/markbates/pkger"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
@@ -27,6 +29,9 @@ type SealRequest struct {
 type SealResponse struct {
 	SealedSecretJSON string `json:"sealedSecretJson"`
 }
+
+//go:embed static/*
+var staticFiles embed.FS
 
 func main() {
 	var c Config
@@ -66,8 +71,13 @@ func main() {
 	r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
 	r.Use(ginzap.RecoveryWithZap(logger, true))
 
-	r.StaticFS("/", pkger.Dir("/static"))
-
+	// Use the `embed` package to serve static files
+	staticFilesystem := fs.FS(staticFiles)
+	if subdir, err := fs.Sub(staticFilesystem, "static"); err == nil {
+		r.StaticFS("/", http.FS(subdir))
+	} else {
+		logger.Panic("Failed to locate static files", zap.Error(err))
+	}
 	r.POST("/seal", func(c *gin.Context) {
 		var req SealRequest
 		err := c.ShouldBindJSON(&req)
