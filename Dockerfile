@@ -14,6 +14,7 @@ RUN apk add --no-cache build-base curl
 
 ENV GO111MODULE on
 ENV GOPROXY https://proxy.golang.org
+ENV PATH="${PATH}:/go/bin"
 
 COPY go.mod go.sum /kubeseal-web/
 
@@ -26,6 +27,8 @@ ARG TARGETOS
 ARG TARGETARCH
 
 COPY ./ /kubeseal-web/
+
+ENV PATH="${PATH}:/go/bin"
 
 RUN mkdir /build/ \
     && pkger -include /static/ \
@@ -49,7 +52,7 @@ RUN wget https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.17.
     && tar -xzf kubeseal.tar.gz -C /tmp/ \
     && install -m 755 /tmp/kubeseal /usr/local/bin/kubeseal \
     && rm -rf kubeseal.tar.gz /tmp/kubeseal
-
+    
 COPY --from=build /build/kubeseal-web /kubeseal-web/run
 
 ARG BUILD_VERSION
